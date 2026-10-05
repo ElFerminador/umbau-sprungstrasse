@@ -114,6 +114,7 @@
         <button data-v="month" aria-pressed="false">Monat</button>
         <button data-v="list" aria-pressed="false">Liste</button>
       </div>
+      <button id="reload" aria-label="Aktualisieren" title="Aktualisieren">↻ Aktualisieren</button>
     </div>
     <div class="nav" id="nav">
       <button id="prev" aria-label="Zurück">‹</button>
@@ -126,7 +127,6 @@
   <main id="main"></main>
 </div>
 
-<script src="plan.enc.js"></script>
 <script>
 const DAY = 864e5;
 const WD = ["So","Mo","Di","Mi","Do","Fr","Sa"];
@@ -159,13 +159,24 @@ async function decrypt(b64, pw) {
   return JSON.parse(new TextDecoder().decode(pt));
 }
 
+// Daten immer frisch holen (der Browser-Cache würde sonst bis zu 10 Min. alte Stände liefern)
+async function fetchEnc() {
+  const r = await fetch("plan.enc.js?t=" + Date.now(), { cache: "no-store" });
+  if (!r.ok) throw new Error("http " + r.status);
+  const m = (await r.text()).match(/PLAN_ENC="([^"]+)"/);
+  if (!m) throw new Error("format");
+  return m[1];
+}
+
 async function tryLogin(pw, silent) {
-  if (!window.PLAN_ENC) { $("err").textContent = "Plan-Daten (plan.enc.js) nicht gefunden."; return; }
   if (!window.crypto || !crypto.subtle) { $("err").textContent = "Dieser Browser/diese Verbindung unterstützt keine Entschlüsselung (HTTPS nötig)."; return; }
+  let enc;
+  try { enc = await fetchEnc(); }
+  catch { if (!silent) $("err").textContent = "Plan-Daten konnten nicht geladen werden."; return; }
   try {
-    const plan = await decrypt(window.PLAN_ENC, pw);
+    const plan = await decrypt(enc, pw);
     store.set("pw", pw);
-    start(plan);
+    start(plan, pw);
   } catch {
     store.del("pw");
     if (!silent) $("err").textContent = "Falsches Passwort.";
@@ -175,25 +186,43 @@ $("loginform").onsubmit = e => { e.preventDefault(); $("err").textContent = ""; 
 { const saved = store.get("pw"); if (saved) tryLogin(saved, true); }
 
 /* ---------- App ---------- */
-function start(P) {
+function start(P, pw) {
   $("gate").hidden = true; $("app").hidden = false;
-  $("h").textContent = P.titel; document.title = P.titel;
 
-  const first = parse(P.von), lastD = parse(P.bis);
+  let first = parse(P.von), lastD = parse(P.bis);
   const hidden = new Set();
-  let view = "week", cur;
+  let view = "week", cur, loadedAt = Date.now();
 
   const clamp = d => d < first ? new Date(first) : d > lastD ? new Date(lastD) : d;
   cur = clamp(new Date());
 
-  // Legende
-  for (const [k, f] of Object.entries(P.firmen)) {
-    const b = document.createElement("button");
-    b.setAttribute("aria-pressed", "true");
-    b.innerHTML = '<span class="dot" style="--c:' + f.farbe + '"></span>' + esc(f.name);
-    b.onclick = () => { hidden.has(k) ? hidden.delete(k) : hidden.add(k); b.setAttribute("aria-pressed", hidden.has(k) ? "false" : "true"); render(); };
-    $("legend").appendChild(b);
+  function buildLegend() {
+    $("h").textContent = P.titel; document.title = P.titel;
+    $("legend").innerHTML = "";
+    for (const [k, f] of Object.entries(P.firmen)) {
+      const b = document.createElement("button");
+      b.setAttribute("aria-pressed", hidden.has(k) ? "false" : "true");
+      b.innerHTML = '<span class="dot" style="--c:' + f.farbe + '"></span>' + esc(f.name);
+      b.onclick = () => { hidden.has(k) ? hidden.delete(k) : hidden.add(k); b.setAttribute("aria-pressed", hidden.has(k) ? "false" : "true"); render(); };
+      $("legend").appendChild(b);
+    }
   }
+  buildLegend();
+
+  async function refresh() {
+    const btn = $("reload"); btn.disabled = true;
+    try {
+      Object.assign(P, await decrypt(await fetchEnc(), pw));
+      first = parse(P.von); lastD = parse(P.bis); cur = clamp(cur);
+      loadedAt = Date.now();
+      buildLegend(); render();
+    } catch {}
+    btn.disabled = false;
+  }
+  $("reload").onclick = refresh;
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && Date.now() - loadedAt > 60000) refresh();
+  });
 
   const evsFor = ds => P.events
     .filter(e => !hidden.has(e.firma) && e.von <= ds && (e.bis || e.von) >= ds)
