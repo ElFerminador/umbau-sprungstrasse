@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Umbau Sprungstrasse</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #fff; --text: #1d1d1b; --muted: #6b6b66; --line: #e2e0da;
+    --today: #fff3bf; --weekend: #efede8; --accent: #1d1d1b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #151514; --card: #1f1f1d; --text: #ecebe6; --muted: #9a9993; --line: #34332f;
+            --today: #3d3512; --weekend: #1a1a18; --accent: #ecebe6; }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; font: 16px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+  button, input { font: inherit; color: var(--text); }
+  button { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+  button:disabled { opacity: .35; cursor: default; }
+
+  /* Login */
+  #gate { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+  #gate form { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 24px; width: min(360px, 100%); display: grid; gap: 12px; }
+  #gate h1 { margin: 0; font-size: 1.15rem; }
+  #gate input { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 10px 12px; }
+  #gate .err { color: #c92a2a; font-size: .875rem; min-height: 1.2em; margin: 0; }
+  #gate button { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+
+  header { padding: 16px; max-width: 1200px; margin: 0 auto; }
+  h1.t { font-size: 1.25rem; margin: 0 0 12px; }
+  .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .seg { display: inline-flex; }
+  .seg button { border-radius: 0; margin-left: -1px; padding: 8px 12px; }
+  .seg button:first-child { border-radius: 8px 0 0 8px; margin-left: 0; }
+  .seg button:last-child { border-radius: 0 8px 8px 0; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .nav { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .nav .title { flex: 1; text-align: center; font-weight: 600; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px; }
+  .legend button { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; font-size: .875rem; border-radius: 999px; }
+  .legend button[aria-pressed="false"] { opacity: .4; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+  main { max-width: 1200px; margin: 0 auto; padding: 0 16px 32px; }
+
+  .ev { --c: #888; border-left: 4px solid var(--c); background: color-mix(in srgb, var(--c) 14%, var(--card));
+        border-radius: 6px; padding: 6px 8px; margin-bottom: 6px; font-size: .9rem; }
+  .ev .meta { font-size: .75rem; color: var(--muted); }
+  .ev .firma { font-weight: 600; color: var(--c); filter: brightness(.85); }
+  .ev .tm { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .ev.ganz { background: var(--c); color: #fff; border-left-color: rgba(0,0,0,.25); }
+  .ev.ganz .meta, .ev.ganz .firma { color: rgba(255,255,255,.88); filter: none; }
+
+  /* Woche */
+  .week { display: grid; gap: 8px; }
+  .day { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px; min-height: 70px; }
+  .day.today, .cell.today { background: var(--today); }
+  .day.we { background: var(--weekend); }
+  .day h2, .lday h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+  .day h2 b, .lday h2 b { color: var(--text); font-size: 1rem; margin-left: 4px; }
+  .empty { color: var(--muted); font-size: .85rem; }
+  @media (min-width: 900px) {
+    .week { grid-template-columns: repeat(7, 1fr); }
+    .day { min-height: 220px; padding: 8px; }
+    .week .ev { font-size: .82rem; }
+  }
+  @media (max-width: 899px) { .week .we:not(.has) { display: none; } }
+
+  /* Monat */
+  .mgrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .mh { font-size: .75rem; color: var(--muted); text-align: center; text-transform: uppercase; padding-bottom: 2px; }
+  .cell { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 4px; min-height: 100px;
+          cursor: pointer; overflow: hidden; }
+  .cell.we { background: var(--weekend); }
+  .cell.today { background: var(--today); }
+  .cell.out { opacity: .35; }
+  .cell .n { font-size: .8rem; font-weight: 600; margin-bottom: 3px; }
+  .chip { --c: #888; font-size: .72rem; line-height: 1.25; padding: 1px 5px; border-radius: 4px; margin-bottom: 2px;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+          background: color-mix(in srgb, var(--c) 18%, var(--card)); border-left: 3px solid var(--c); }
+  .chip.ganz { background: var(--c); color: #fff; }
+  @media (max-width: 699px) {
+    .cell { min-height: 62px; padding: 3px; }
+    .chip { height: 6px; padding: 0; font-size: 0; border-left: 0; border-radius: 3px; }
+  }
+
+  /* Liste */
+  .lday { margin-bottom: 14px; }
+  .lday.today h2 { color: var(--text); }
+  .lday.today h2::after { content: " · heute"; color: #c2750b; }
+
+  @media print { .nav button, .legend, .bar { display: none; } body { background: #fff; } }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <form id="loginform">
+    <h1>Umbau Sprungstrasse</h1>
+    <input id="pw" type="password" placeholder="Passwort" autocomplete="current-password" autofocus required>
+    <p class="err" id="err"></p>
+    <button type="submit">Öffnen</button>
+  </form>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <h1 class="t" id="h"></h1>
+    <div class="bar">
+      <div class="seg" id="views">
+        <button data-v="week" aria-pressed="true">Woche</button>
+        <button data-v="month" aria-pressed="false">Monat</button>
+        <button data-v="list" aria-pressed="false">Liste</button>
+      </div>
+    </div>
+    <div class="nav" id="nav">
+      <button id="prev" aria-label="Zurück">‹</button>
+      <div class="title" id="wt"></div>
+      <button id="next" aria-label="Weiter">›</button>
+      <button id="now">Heute</button>
+    </div>
+    <div class="legend" id="legend"></div>
+  </header>
+  <main id="main"></main>
+</div>
+
+<script src="plan.enc.js"></script>
+<script>
+const DAY = 864e5;
+const WD = ["So","Mo","Di","Mi","Do","Fr","Sa"];
+const WDL = ["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
+const MON = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+const $ = id => document.getElementById(id);
+const iso = d => d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+const parse = s => { const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d, 12); };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const mondayOf = d => addDays(d, -((d.getDay()+6)%7));
+const fmt = d => d.getDate() + "." + (d.getMonth()+1) + ".";
+const kw = d => { const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  t.setUTCDate(t.getUTCDate()+4-(t.getUTCDay()||7));
+  return Math.ceil(((t - Date.UTC(t.getUTCFullYear(),0,1))/DAY+1)/7); };
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  del(k) { try { localStorage.removeItem(k); } catch {} },
+};
+
+/* ---------- Entschlüsselung (openssl enc -aes-256-cbc -pbkdf2 -iter 200000) ---------- */
+async function decrypt(b64, pw) {
+  const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const salt = raw.slice(8, 16), data = raw.slice(16);
+  const km = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveBits"]);
+  const bits = new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: 200000, hash: "SHA-256" }, km, 384));
+  const key = await crypto.subtle.importKey("raw", bits.slice(0, 32), "AES-CBC", false, ["decrypt"]);
+  const pt = await crypto.subtle.decrypt({ name: "AES-CBC", iv: bits.slice(32, 48) }, key, data);
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+
+async function tryLogin(pw, silent) {
+  if (!window.PLAN_ENC) { $("err").textContent = "Plan-Daten (plan.enc.js) nicht gefunden."; return; }
+  if (!window.crypto || !crypto.subtle) { $("err").textContent = "Dieser Browser/diese Verbindung unterstützt keine Entschlüsselung (HTTPS nötig)."; return; }
+  try {
+    const plan = await decrypt(window.PLAN_ENC, pw);
+    store.set("pw", pw);
+    start(plan);
+  } catch {
+    store.del("pw");
+    if (!silent) $("err").textContent = "Falsches Passwort.";
+  }
+}
+$("loginform").onsubmit = e => { e.preventDefault(); $("err").textContent = ""; tryLogin($("pw").value, false); };
+{ const saved = store.get("pw"); if (saved) tryLogin(saved, true); }
+
+/* ---------- App ---------- */
+function start(P) {
+  $("gate").hidden = true; $("app").hidden = false;
+  $("h").textContent = P.titel; document.title = P.titel;
+
+  const first = parse(P.von), lastD = parse(P.bis);
+  const hidden = new Set();
+  let view = "week", cur;
+
+  const clamp = d => d < first ? new Date(first) : d > lastD ? new Date(lastD) : d;
+  cur = clamp(new Date());
+
+  // Legende
+  for (const [k, f] of Object.entries(P.firmen)) {
+    const b = document.createElement("button");
+    b.setAttribute("aria-pressed", "true");
+    b.innerHTML = '<span class="dot" style="--c:' + f.farbe + '"></span>' + esc(f.name);
+    b.onclick = () => { hidden.has(k) ? hidden.delete(k) : hidden.add(k); b.setAttribute("aria-pressed", hidden.has(k) ? "false" : "true"); render(); };
+    $("legend").appendChild(b);
+  }
+
+  const evsFor = ds => P.events
+    .filter(e => !hidden.has(e.firma) && e.von <= ds && (e.bis || e.von) >= ds)
+    .sort((a, b) => (a.zeit ? 1 : 0) - (b.zeit ? 1 : 0) || (a.zeit || "").localeCompare(b.zeit || "") || a.firma.localeCompare(b.firma));
+  const firma = e => P.firmen[e.firma] || { name: e.firma, farbe: "#888" };
+
+  function card(e, d) {
+    const f = firma(e), end = e.bis || e.von, multi = end !== e.von;
+    const n = Math.round((d - parse(e.von)) / DAY) + 1, total = Math.round((parse(end) - parse(e.von)) / DAY) + 1;
+    const zeit = e.zeit ? '<span class="tm">' + esc(e.zeit) + (e.bis_zeit ? "–" + esc(e.bis_zeit) : "") + "</span> · " : "";
+    const meta = [e.ort, multi ? "Tag " + n + "/" + total : "", e.notiz].filter(Boolean).map(esc).join(" · ");
+    return '<div class="ev' + (e.zeit ? "" : " ganz") + '" style="--c:' + f.farbe + '"><div>' + zeit + esc(e.titel) + '</div>' +
+      '<div class="meta"><span class="firma">' + esc(f.name) + "</span>" + (meta ? " · " + meta : "") + "</div></div>";
+  }
+
+  function renderWeek() {
+    const mon = mondayOf(cur), sun = addDays(mon, 6);
+    $("wt").textContent = "KW " + kw(mon) + " · " + fmt(mon) + " – " + fmt(sun) + sun.getFullYear();
+    $("prev").disabled = addDays(mon, -1) < first;
+    $("next").disabled = addDays(sun, 1) > lastD;
+    const todayIso = iso(new Date());
+    let html = '<div class="week">';
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(mon, i), ds = iso(d), evs = evsFor(ds);
+      html += '<section class="day' + (ds === todayIso ? " today" : "") + (i >= 5 ? " we" : "") + (evs.length ? " has" : "") + '">' +
+        "<h2>" + WD[d.getDay()] + "<b>" + fmt(d) + "</b></h2>" +
+        (evs.map(e => card(e, d)).join("") || '<div class="empty">–</div>') + "</section>";
+    }
+    $("main").innerHTML = html + "</div>";
+  }
+
+  function renderMonth() {
+    const m0 = new Date(cur.getFullYear(), cur.getMonth(), 1, 12);
+    $("wt").textContent = MON[m0.getMonth()] + " " + m0.getFullYear();
+    $("prev").disabled = new Date(m0.getFullYear(), m0.getMonth(), 0, 12) < first;
+    $("next").disabled = new Date(m0.getFullYear(), m0.getMonth() + 1, 1, 12) > lastD;
+    const todayIso = iso(new Date());
+    const start = mondayOf(m0);
+    const weeks = Math.ceil(((m0.getDay()+6)%7 + new Date(m0.getFullYear(), m0.getMonth()+1, 0).getDate()) / 7);
+    let html = '<div class="mgrid">' + ["Mo","Di","Mi","Do","Fr","Sa","So"].map(x => '<div class="mh">' + x + "</div>").join("");
+    for (let i = 0; i < weeks * 7; i++) {
+      const d = addDays(start, i), ds = iso(d);
+      const out = d.getMonth() !== m0.getMonth();
+      const inRange = d >= first && d <= lastD;
+      const chips = inRange ? evsFor(ds).map(e => '<div class="chip' + (e.zeit ? "" : " ganz") + '" style="--c:' + firma(e).farbe + '">' +
+        (e.zeit ? esc(e.zeit) + " " : "") + esc(e.titel) + "</div>").join("") : "";
+      html += '<div class="cell' + (out ? " out" : "") + (i % 7 >= 5 ? " we" : "") + (ds === todayIso ? " today" : "") + '" data-d="' + ds + '">' +
+        '<div class="n">' + d.getDate() + "</div>" + chips + "</div>";
+    }
+    $("main").innerHTML = html + "</div>";
+    $("main").querySelectorAll(".cell").forEach(c => c.onclick = () => { cur = clamp(parse(c.dataset.d)); setView("week"); });
+  }
+
+  function renderList() {
+    const todayIso = iso(new Date());
+    let html = "";
+    for (let d = new Date(first); d <= lastD; d = addDays(d, 1)) {
+      const ds = iso(d), evs = evsFor(ds);
+      if (!evs.length) continue;
+      html += '<section class="lday' + (ds === todayIso ? " today" : "") + '" id="d' + ds + '"><h2>' + WDL[d.getDay()] + "<b>" + fmt(d) + d.getFullYear() + "</b></h2>" +
+        evs.map(e => card(e, d)).join("") + "</section>";
+    }
+    $("main").innerHTML = html || '<p class="empty">Keine Einträge.</p>';
+    const t = document.getElementById("d" + todayIso); if (t) t.scrollIntoView({ block: "start" });
+  }
+
+  function render() {
+    $("nav").hidden = view === "list";
+    ({ week: renderWeek, month: renderMonth, list: renderList })[view]();
+    history.replaceState(null, "", "#" + view + "=" + iso(cur));
+  }
+  function setView(v) {
+    view = v;
+    document.querySelectorAll("#views button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === v ? "true" : "false"));
+    render();
+  }
+  document.querySelectorAll("#views button").forEach(b => b.onclick = () => setView(b.dataset.v));
+  const step = dir => { cur = clamp(view === "month" ? new Date(cur.getFullYear(), cur.getMonth() + dir, 1, 12) : addDays(cur, 7 * dir)); render(); };
+  $("prev").onclick = () => step(-1);
+  $("next").onclick = () => step(1);
+  $("now").onclick = () => { cur = clamp(new Date()); render(); };
+
+  const m = location.hash.match(/^#(week|month|list)=(\d{4}-\d\d-\d\d)$/);
+  if (m) { cur = clamp(parse(m[2])); view = m[1]; }
+  setView(view);
+}
+</script>
+</body>
+</html>

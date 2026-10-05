@@ -1,0 +1,10 @@
+# Klartext-Daten und Passwort bleiben lokal
+plan.json
+.password
+
+# Betriebssystem / Editor / Tools
+.DS_Store
+.claude/
+.vscode/
+.idea/
+*.log
