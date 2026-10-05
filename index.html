@@ -161,11 +161,23 @@ async function decrypt(b64, pw) {
 
 // Daten immer frisch holen (der Browser-Cache würde sonst bis zu 10 Min. alte Stände liefern)
 async function fetchEnc() {
-  const r = await fetch("plan.enc.js?t=" + Date.now(), { cache: "no-store" });
-  if (!r.ok) throw new Error("http " + r.status);
-  const m = (await r.text()).match(/PLAN_ENC="([^"]+)"/);
-  if (!m) throw new Error("format");
-  return m[1];
+  try {
+    const r = await fetch("plan.enc.js?t=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) throw new Error("http " + r.status);
+    const m = (await r.text()).match(/PLAN_ENC="([^"]+)"/);
+    if (!m) throw new Error("format");
+    return m[1];
+  } catch (e) {
+    // Fallback (z.B. wenn die Datei direkt per file:// geöffnet wird: fetch ist dort gesperrt)
+    return new Promise((resolve, reject) => {
+      delete window.PLAN_ENC;
+      const s = document.createElement("script");
+      s.src = "plan.enc.js?t=" + Date.now();
+      s.onload = () => { s.remove(); window.PLAN_ENC ? resolve(window.PLAN_ENC) : reject(e); };
+      s.onerror = () => { s.remove(); reject(e); };
+      document.head.appendChild(s);
+    });
+  }
 }
 
 async function tryLogin(pw, silent) {
