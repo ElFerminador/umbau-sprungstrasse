@@ -48,10 +48,10 @@
   .ev { --c: #888; border-left: 4px solid var(--c); background: color-mix(in srgb, var(--c) 14%, var(--card));
         border-radius: 6px; padding: 6px 8px; margin-bottom: 6px; font-size: .9rem; }
   .ev .meta { font-size: .75rem; color: var(--muted); }
-  .ev .firma { font-weight: 600; color: var(--c); filter: brightness(.85); }
+  .ev .firma { font-weight: 600; color: color-mix(in srgb, var(--c) 55%, var(--text)); }
   .ev .tm { font-weight: 600; font-variant-numeric: tabular-nums; }
-  .ev.ganz { background: var(--c); color: #fff; border-left-color: rgba(0,0,0,.25); }
-  .ev.ganz .meta, .ev.ganz .firma { color: rgba(255,255,255,.88); filter: none; }
+  .ev.ganz { background: var(--c); color: var(--ink, #fff); border-left-color: rgba(0,0,0,.25); }
+  .ev.ganz .meta, .ev.ganz .firma { color: inherit; opacity: .85; }
 
   /* Woche */
   .week { display: grid; gap: 8px; }
@@ -80,7 +80,7 @@
   .chip { --c: #888; font-size: .72rem; line-height: 1.25; padding: 1px 5px; border-radius: 4px; margin-bottom: 2px;
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
           background: color-mix(in srgb, var(--c) 18%, var(--card)); border-left: 3px solid var(--c); }
-  .chip.ganz { background: var(--c); color: #fff; }
+  .chip.ganz { background: var(--c); color: var(--ink, #fff); }
   @media (max-width: 699px) {
     .cell { min-height: 62px; padding: 3px; }
     .chip { height: 6px; padding: 0; font-size: 0; border-left: 0; border-radius: 3px; }
@@ -225,7 +225,7 @@ function start(P, pw) {
     const btn = $("reload"); btn.disabled = true;
     try {
       Object.assign(P, await decrypt(await fetchEnc(), pw));
-      first = parse(P.von); lastD = parse(P.bis); cur = clamp(cur);
+      first = parse(P.von); lastD = parse(P.bis); cur = clamp(cur); prep();
       loadedAt = Date.now();
       buildLegend(); render();
     } catch {}
@@ -236,17 +236,35 @@ function start(P, pw) {
     if (!document.hidden && Date.now() - loadedAt > 60000) refresh();
   });
 
+  // Aktive Tage je Eintrag: Sa/So fallen weg, ausser "wochenende": true ist gesetzt
+  // oder es ist der erste/letzte Tag des Eintrags (explizit so gewählt).
+  function prep() {
+    for (const e of P.events) {
+      const end = e.bis || e.von, days = [];
+      for (let d = parse(e.von); iso(d) <= end; d = addDays(d, 1)) {
+        const ds = iso(d), we = d.getDay() === 0 || d.getDay() === 6;
+        if (!we || e.wochenende || ds === e.von || ds === end) days.push(ds);
+      }
+      e._days = new Set(days); e._n = days;
+    }
+  }
+  prep();
+
   const evsFor = ds => P.events
-    .filter(e => !hidden.has(e.firma) && e.von <= ds && (e.bis || e.von) >= ds)
+    .filter(e => !hidden.has(e.firma) && e._days.has(ds))
     .sort((a, b) => (a.zeit ? 1 : 0) - (b.zeit ? 1 : 0) || (a.zeit || "").localeCompare(b.zeit || "") || a.firma.localeCompare(b.firma));
   const firma = e => P.firmen[e.firma] || { name: e.firma, farbe: "#888" };
+  // Lesbare Schriftfarbe auf voller Firmenfarbe (helle Farben wie Gelb bekommen dunkle Schrift)
+  const ink = hex => { const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+    return (0.299 * r + 0.587 * g + 0.114 * b) > 160 ? "#1d1d1b" : "#fff"; };
+  const cs = f => "--c:" + f.farbe + ";--ink:" + ink(f.farbe);
 
   function card(e, d) {
-    const f = firma(e), end = e.bis || e.von, multi = end !== e.von;
-    const n = Math.round((d - parse(e.von)) / DAY) + 1, total = Math.round((parse(end) - parse(e.von)) / DAY) + 1;
+    const f = firma(e), total = e._n.length, multi = total > 1;
+    const n = e._n.indexOf(iso(d)) + 1;
     const zeit = e.zeit ? '<span class="tm">' + esc(e.zeit) + (e.bis_zeit ? "–" + esc(e.bis_zeit) : "") + "</span> · " : "";
     const meta = [e.ort, multi ? "Tag " + n + "/" + total : "", e.notiz].filter(Boolean).map(esc).join(" · ");
-    return '<div class="ev' + (e.zeit ? "" : " ganz") + '" style="--c:' + f.farbe + '"><div>' + zeit + esc(e.titel) + '</div>' +
+    return '<div class="ev' + (e.zeit ? "" : " ganz") + '" style="' + cs(f) + '"><div>' + zeit + esc(e.titel) + '</div>' +
       '<div class="meta"><span class="firma">' + esc(f.name) + "</span>" + (meta ? " · " + meta : "") + "</div></div>";
   }
 
@@ -279,7 +297,7 @@ function start(P, pw) {
       const d = addDays(start, i), ds = iso(d);
       const out = d.getMonth() !== m0.getMonth();
       const inRange = d >= first && d <= lastD;
-      const chips = inRange ? evsFor(ds).map(e => '<div class="chip' + (e.zeit ? "" : " ganz") + '" style="--c:' + firma(e).farbe + '">' +
+      const chips = inRange ? evsFor(ds).map(e => '<div class="chip' + (e.zeit ? "" : " ganz") + '" style="' + cs(firma(e)) + '">' +
         (e.zeit ? esc(e.zeit) + " " : "") + esc(e.titel) + "</div>").join("") : "";
       html += '<div class="cell' + (out ? " out" : "") + (i % 7 >= 5 ? " we" : "") + (ds === todayIso ? " today" : "") + '" data-d="' + ds + '">' +
         '<div class="n">' + d.getDate() + "</div>" + chips + "</div>";
